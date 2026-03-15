@@ -37,12 +37,28 @@ function isBotRunning() {
   } catch { return false; }
 }
 
+// Collect all Redeem outcomes with explicit winner= from the scalp log
+function collectScalpRedeems() {
+  if (!fs.existsSync(SCALP_LOG_FILE)) return {};
+  const log = fs.readFileSync(SCALP_LOG_FILE, 'utf-8');
+  const outcomes = {};
+  const re = /\[Redeem\] btc-updown-5m-(\d+): UP=(\d+), DOWN=(\d+), winner=(\w+)/g;
+  let m;
+  while ((m = re.exec(log)) !== null) {
+    outcomes[m[1]] = { winner: m[4], up: parseInt(m[2]), down: parseInt(m[3]) };
+  }
+  return outcomes;
+}
+
 function parseLog() {
   if (!fs.existsSync(LOG_FILE)) return [];
   const log = fs.readFileSync(LOG_FILE, 'utf-8');
   const blocks = log.split(/(?=\[自动策略\] 新窗口)/);
 
   const pad = n => String(n).padStart(2, '0');
+
+  // Get explicit Redeem outcomes from scalp log to resolve pending trades
+  const scalpRedeems = collectScalpRedeems();
 
   // First pass: parse all trade blocks
   const parsedBlocks = [];
@@ -89,19 +105,21 @@ function parseLog() {
     });
   }
 
-  // Second pass: determine outcomes via balance changes
-  // Between block[i] and block[i+1], the redeems in block[i] get settled.
-  // redeemGain = balance[i+1] - (balance[i] - amount[i])
-  // If gain > 0: the redeemed token side won. If gain ≈ 0: that side lost.
-  const outcomes = {}; // slugId → { winner: 'UP'|'DOWN', shares: N }
+  // Second pass: determine outcomes
+  // Use scalp log redeems (explicit winner) first, then fallback to balance-change inference
+  const outcomes = {}; // slugId → { winner: 'UP'|'DOWN' }
   for (let i = 0; i < parsedBlocks.length; i++) {
     const curr = parsedBlocks[i];
     const next = parsedBlocks[i + 1];
 
     for (const r of curr.redeems) {
       if (r.winner) {
-        // New format with explicit winner
-        outcomes[r.slugId] = { winner: r.winner, shares: r.winner === 'UP' ? r.up : r.down };
+        outcomes[r.slugId] = { winner: r.winner };
+        continue;
+      }
+      // Check scalp log for explicit winner
+      if (scalpRedeems[r.slugId]) {
+        outcomes[r.slugId] = { winner: scalpRedeems[r.slugId].winner };
         continue;
       }
       // Infer winner from balance change
@@ -109,15 +127,22 @@ function parseLog() {
         const gain = next.balance - (curr.balance - curr.amount);
         const tokenSide = r.up > 0 ? 'UP' : 'DOWN';
         if (gain > 0.01) {
-          outcomes[r.slugId] = { winner: tokenSide, shares: Math.max(r.up, r.down) };
+          outcomes[r.slugId] = { winner: tokenSide };
         } else {
-          outcomes[r.slugId] = { winner: tokenSide === 'UP' ? 'DOWN' : 'UP', shares: 0 };
+          outcomes[r.slugId] = { winner: tokenSide === 'UP' ? 'DOWN' : 'UP' };
         }
       }
     }
   }
 
-  // Third pass: build trade list
+  // Also check scalp redeems for any trade slugIds not yet resolved
+  for (const pb of parsedBlocks) {
+    if (!outcomes[pb.slugId] && scalpRedeems[pb.slugId]) {
+      outcomes[pb.slugId] = { winner: scalpRedeems[pb.slugId].winner };
+    }
+  }
+
+  // Third pass: build trade list with price-based PnL
   const trades = [];
   for (const pb of parsedBlocks) {
     if (pb.strategy === 'skip' || !pb.dir || !pb.success) continue;
@@ -132,12 +157,9 @@ function parseLog() {
     if (outcome) {
       if (pb.dir === outcome.winner) {
         result = 'won';
-        pnl = outcome.shares > 0 ? outcome.shares / 1e6 - pb.amount : 0;
-        // Sanity cap PnL at 10x bet
-        if (pnl > 10 * pb.amount) {
-          const price = pb.dir === 'UP' ? parseFloat(pb.upPrice) : parseFloat(pb.downPrice);
-          pnl = price > 0 ? (1 / price - 1) * pb.amount : pb.amount;
-        }
+        // Use price-based PnL (Redeem shares are unreliable due to multi-source tokens)
+        const price = pb.dir === 'UP' ? parseFloat(pb.upPrice) : parseFloat(pb.downPrice);
+        pnl = price > 0 ? (1 / price - 1) * pb.amount : 0;
       } else {
         result = 'lost';
         pnl = -pb.amount;
@@ -166,17 +188,22 @@ function parseScalpLog() {
   const lines = log.split('\n');
 
   const pad = n => String(n).padStart(2, '0');
+
+  // Collect Redeem outcomes for resolving "卖出失败" trades
+  const redeemOutcomes = collectScalpRedeems();
+
   const trades = [];
-  let windowTime = null;
+  let windowId = null, windowTime = null;
   let upPrice = '0.50', downPrice = '0.50';
   let currentTrade = null;
   let tradeIndex = 0;
 
   for (const line of lines) {
     // Window header: [刷单] ═══ 窗口 1773590700 (2026-03-15T16:05:00.000Z) ═══
-    const windowMatch = line.match(/\[刷单\] ═══ 窗口 \d+ \((\d{4}-\d{2}-\d{2}T[\d:]+\.\d+Z)\) ═══/);
+    const windowMatch = line.match(/\[刷单\] ═══ 窗口 (\d+) \((\d{4}-\d{2}-\d{2}T[\d:]+\.\d+Z)\) ═══/);
     if (windowMatch) {
-      windowTime = windowMatch[1];
+      windowId = windowMatch[1];
+      windowTime = windowMatch[2];
       tradeIndex = 0;
       continue;
     }
@@ -190,8 +217,8 @@ function parseScalpLog() {
     }
 
     // Open position: [刷单] 开仓 UP $1.00 → 1.613 tokens @$0.505
-    const openMatch = line.match(/\[刷单\] 开仓 (UP|DOWN) \$([\d.]+)/);
-    if (openMatch && windowTime) {
+    const openMatch = line.match(/\[刷单\] 开仓 (UP|DOWN) \$([\d.]+) → ([\d.]+) tokens @\$([\d.]+)/);
+    if (openMatch && windowId) {
       // If previous trade was never closed, push it as pending
       if (currentTrade) {
         trades.push(currentTrade);
@@ -202,8 +229,11 @@ function parseScalpLog() {
 
       currentTrade = {
         ts: tsStr,
+        windowId,
         dir: openMatch[1],
         amount: parseFloat(openMatch[2]),
+        tokens: parseFloat(openMatch[3]),
+        entryPrice: parseFloat(openMatch[4]),
         result: 'pending',
         pnl: 0,
         strategy: 'scalp',
@@ -221,14 +251,31 @@ function parseScalpLog() {
       const pnl = parseFloat(closeMatch[2]);
       currentTrade.pnl = Math.round(pnl * 100) / 100;
       currentTrade.result = pnl > 0 ? 'won' : 'lost';
+      delete currentTrade.windowId;
+      delete currentTrade.tokens;
+      delete currentTrade.entryPrice;
       trades.push(currentTrade);
       currentTrade = null;
       continue;
     }
 
-    // Close failure: [平仓] 卖出失败, 持有到结算
+    // Close failure: [平仓] 卖出失败, 持有到结算 → resolve from Redeem
     if (line.includes('[平仓] 卖出失败') && currentTrade) {
-      currentTrade.result = 'pending';
+      const redeem = redeemOutcomes[currentTrade.windowId];
+      if (redeem) {
+        const isWin = currentTrade.dir === redeem.winner;
+        currentTrade.result = isWin ? 'won' : 'lost';
+        if (isWin) {
+          // PnL = price-based theoretical profit (reliable for $1 FOK orders)
+          const price = currentTrade.entryPrice;
+          currentTrade.pnl = price > 0 ? Math.round((1 / price - 1) * currentTrade.amount * 100) / 100 : 0;
+        } else {
+          currentTrade.pnl = -currentTrade.amount;
+        }
+      }
+      delete currentTrade.windowId;
+      delete currentTrade.tokens;
+      delete currentTrade.entryPrice;
       trades.push(currentTrade);
       currentTrade = null;
       continue;
@@ -237,6 +284,9 @@ function parseScalpLog() {
 
   // Unclosed trade → pending
   if (currentTrade) {
+    delete currentTrade.windowId;
+    delete currentTrade.tokens;
+    delete currentTrade.entryPrice;
     trades.push(currentTrade);
   }
 
