@@ -57,22 +57,8 @@
       { ts: '2026-03-15 10:45:00', dir: 'UP', amount: 5.00, result: 'lost', pnl: -5.00, strategy: 'low-vol-reversal' },
     ];
 
-    // ── Parse log file trades ──
-    function parseLogTrades(logText) {
-      const trades = [];
-      const lines = logText.split('\n');
-      for (const line of lines) {
-        // Match lines like: [2026-03-15 11:55:00] TRADE UP 5.00 won +3.85 trend-follow
-        const m = line.match(/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s*TRADE\s+(UP|DOWN)\s+([\d.]+)\s+(won|lost|pending)\s+([+-]?[\d.]+)\s+(\S+)/i);
-        if (m) {
-          trades.push({
-            ts: m[1], dir: m[2].toUpperCase(), amount: parseFloat(m[3]),
-            result: m[4].toLowerCase(), pnl: parseFloat(m[5]), strategy: m[6]
-          });
-        }
-      }
-      return trades;
-    }
+    // ── Detect if running locally (with API server) or on GitHub Pages ──
+    const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
     // ── Stat helpers ──
     function computeStats(trades) {
@@ -218,17 +204,21 @@
         } catch { /* keep last price */ }
       }, []);
 
+      const [apiConnected, setApiConnected] = useState(false);
+
       const fetchLogTrades = useCallback(async () => {
+        if (!IS_LOCAL) return; // GitHub Pages — use sample data
         try {
           const r = await fetch('/api/trades');
           if (r.ok) {
             const d = await r.json();
+            setApiConnected(true);
             if (d.trades && d.trades.length) setTrades(d.trades);
             if (d.balance) setBalance(d.balance);
             if (d.running !== undefined) setRunning(d.running);
             if (d.market) setMarketWindow(d.market);
           }
-        } catch { /* use sample data */ }
+        } catch { setApiConnected(false); }
       }, []);
 
       useEffect(() => {
@@ -266,6 +256,7 @@
               <p className="text-xs text-slate-500 mt-0.5">Auto-refreshes every 30s</p>
             </div>
             <div className="text-right text-xs text-slate-500">
+              {IS_LOCAL && !apiConnected && <div className="text-amber-400 mb-1">API disconnected — showing sample data</div>}
               Last refresh: {lastRefresh.toLocaleTimeString()}
             </div>
           </div>
