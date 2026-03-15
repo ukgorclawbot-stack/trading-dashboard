@@ -1,6 +1,17 @@
 {
   "trades": [
     {
+      "ts": "2026-03-16 05:50:00",
+      "dir": "DOWN",
+      "amount": 1,
+      "result": "pending",
+      "pnl": 0,
+      "strategy": "scalp",
+      "upPrice": "0.43",
+      "downPrice": "0.56",
+      "orderId": null
+    },
+    {
       "ts": "2026-03-16 05:45:00",
       "dir": "UP",
       "amount": 1,
@@ -1427,11 +1438,11 @@
       "orderId": "0x2ca18c6ab83903ddaf92d65c849ecee37f271c9c63fd2a7c26cc5f088340f332"
     }
   ],
-  "balance": "26.90",
+  "balance": "25.90",
   "running": false,
   "market": {
-    "up": "0.45",
+    "up": "0.43",
     "down": "0.56"
   },
-  "exportedAt": "2026-03-15T21:48:56.613Z"
+  "exportedAt": "2026-03-15T21:50:56.723Z"
 }
