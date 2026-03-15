@@ -1,11 +1,64 @@
 {
   "trades": [
     {
-      "ts": "2026-03-16 01:52:00",
+      "ts": "2026-03-16 01:57:00",
       "dir": "DOWN",
       "amount": 1,
       "result": "lost",
       "pnl": -0.41,
+      "strategy": "scalp",
+      "upPrice": "0.51",
+      "downPrice": "0.49",
+      "orderId": null
+    },
+    {
+      "ts": "2026-03-16 01:56:00",
+      "dir": "UP",
+      "amount": 1,
+      "result": "pending",
+      "pnl": 0,
+      "strategy": "scalp",
+      "upPrice": "0.51",
+      "downPrice": "0.49",
+      "orderId": null
+    },
+    {
+      "ts": "2026-03-16 01:56:00",
+      "windowId": "1773597300",
+      "dir": "DOWN",
+      "amount": 1,
+      "tokens": 2.381,
+      "entryPrice": 0.495,
+      "result": "pending",
+      "pnl": 0,
+      "strategy": "scalp",
+      "upPrice": "0.51",
+      "downPrice": "0.49",
+      "orderId": null
+    },
+    {
+      "ts": "2026-03-16 01:55:00",
+      "windowId": "1773597300",
+      "dir": "UP",
+      "amount": 1,
+      "tokens": 2.222,
+      "entryPrice": 0.505,
+      "result": "pending",
+      "pnl": 0,
+      "strategy": "scalp",
+      "upPrice": "0.51",
+      "downPrice": "0.49",
+      "orderId": null
+    },
+    {
+      "ts": "2026-03-16 01:55:00",
+      "windowId": "1773597300",
+      "dir": "UP",
+      "amount": 1,
+      "tokens": 2.174,
+      "entryPrice": 0.505,
+      "result": "pending",
+      "pnl": 0,
       "strategy": "scalp",
       "upPrice": "0.51",
       "downPrice": "0.49",
@@ -20,20 +73,6 @@
       "strategy": "scalp",
       "upPrice": "0.47",
       "downPrice": "0.53",
-      "orderId": null
-    },
-    {
-      "ts": "2026-03-16 01:51:00",
-      "windowId": "1773597000",
-      "dir": "DOWN",
-      "amount": 1,
-      "tokens": 2.381,
-      "entryPrice": 0.495,
-      "result": "pending",
-      "pnl": 0,
-      "strategy": "scalp",
-      "upPrice": "0.51",
-      "downPrice": "0.49",
       "orderId": null
     },
     {
@@ -907,11 +946,11 @@
       "orderId": "0x2ca18c6ab83903ddaf92d65c849ecee37f271c9c63fd2a7c26cc5f088340f332"
     }
   ],
-  "balance": "33.62",
+  "balance": "30.62",
   "running": false,
   "market": {
     "up": "0.51",
     "down": "0.49"
   },
-  "exportedAt": "2026-03-15T17:54:56.364Z"
+  "exportedAt": "2026-03-15T17:56:56.504Z"
 }
