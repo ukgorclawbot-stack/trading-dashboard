@@ -5,6 +5,7 @@ const { execSync } = require('child_process');
 
 const PORT = 5174;
 const LOG_FILE = '/tmp/polymarket-auto.log';
+const SCALP_LOG_FILE = '/tmp/polymarket-scalp.log';
 const BOT_DIR = '/Users/ukgorclawbot/Desktop/polymarket-btc-5m';
 
 // Cache balance for 30s to avoid spamming
@@ -159,6 +160,97 @@ function parseLog() {
   return trades.reverse(); // newest first
 }
 
+function parseScalpLog() {
+  if (!fs.existsSync(SCALP_LOG_FILE)) return [];
+  const log = fs.readFileSync(SCALP_LOG_FILE, 'utf-8');
+  const lines = log.split('\n');
+
+  const pad = n => String(n).padStart(2, '0');
+  const trades = [];
+  let windowTime = null;
+  let upPrice = '0.50', downPrice = '0.50';
+  let currentTrade = null;
+  let tradeIndex = 0;
+
+  for (const line of lines) {
+    // Window header: [刷单] ═══ 窗口 1773590700 (2026-03-15T16:05:00.000Z) ═══
+    const windowMatch = line.match(/\[刷单\] ═══ 窗口 \d+ \((\d{4}-\d{2}-\d{2}T[\d:]+\.\d+Z)\) ═══/);
+    if (windowMatch) {
+      windowTime = windowMatch[1];
+      tradeIndex = 0;
+      continue;
+    }
+
+    // BTC price line: UP=$0.51 DOWN=$0.49
+    const priceMatch = line.match(/UP=\$([\d.]+)\s+DOWN=\$([\d.]+)/);
+    if (priceMatch && line.includes('[刷单]')) {
+      upPrice = priceMatch[1];
+      downPrice = priceMatch[2];
+      continue;
+    }
+
+    // Open position: [刷单] 开仓 UP $1.00 → 1.613 tokens @$0.505
+    const openMatch = line.match(/\[刷单\] 开仓 (UP|DOWN) \$([\d.]+)/);
+    if (openMatch && windowTime) {
+      // If previous trade was never closed, push it as pending
+      if (currentTrade) {
+        trades.push(currentTrade);
+      }
+      const ts = new Date(windowTime);
+      ts.setSeconds(ts.getSeconds() + tradeIndex * 60);
+      const tsStr = `${ts.getFullYear()}-${pad(ts.getMonth()+1)}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`;
+
+      currentTrade = {
+        ts: tsStr,
+        dir: openMatch[1],
+        amount: parseFloat(openMatch[2]),
+        result: 'pending',
+        pnl: 0,
+        strategy: 'scalp',
+        upPrice,
+        downPrice,
+        orderId: null,
+      };
+      tradeIndex++;
+      continue;
+    }
+
+    // Close success: [平仓] 成功 收回=$1.367 PnL=$0.367
+    const closeMatch = line.match(/\[平仓\] 成功 收回=\$([\d.]+) PnL=\$([-\d.]+)/);
+    if (closeMatch && currentTrade) {
+      const pnl = parseFloat(closeMatch[2]);
+      currentTrade.pnl = Math.round(pnl * 100) / 100;
+      currentTrade.result = pnl > 0 ? 'won' : 'lost';
+      trades.push(currentTrade);
+      currentTrade = null;
+      continue;
+    }
+
+    // Close failure: [平仓] 卖出失败, 持有到结算
+    if (line.includes('[平仓] 卖出失败') && currentTrade) {
+      currentTrade.result = 'pending';
+      trades.push(currentTrade);
+      currentTrade = null;
+      continue;
+    }
+  }
+
+  // Unclosed trade → pending
+  if (currentTrade) {
+    trades.push(currentTrade);
+  }
+
+  return trades.reverse(); // newest first
+}
+
+function getAllTrades() {
+  const autoTrades = parseLog();
+  const scalpTrades = parseScalpLog();
+  const all = [...autoTrades, ...scalpTrades];
+  all.sort((a, b) => b.ts.localeCompare(a.ts));
+  return all;
+}
+
 function getMarketPrices(trades) {
   if (trades.length > 0) {
     return { up: trades[0].upPrice, down: trades[0].downPrice };
@@ -173,7 +265,7 @@ const server = http.createServer((req, res) => {
 
   if (req.url === '/api/trades') {
     try {
-      const trades = parseLog();
+      const trades = getAllTrades();
       const balance = getBalance();
       const running = isBotRunning();
       const market = getMarketPrices(trades);
@@ -218,7 +310,7 @@ const EXPORT_INTERVAL = 2 * 60 * 1000; // 2 minutes
 
 function exportAndPush() {
   try {
-    const trades = parseLog();
+    const trades = getAllTrades();
     const balance = getBalance();
     const running = isBotRunning();
     const market = getMarketPrices(trades);
