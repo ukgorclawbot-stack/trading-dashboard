@@ -353,11 +353,11 @@
       "orderId": "0x2ca18c6ab83903ddaf92d65c849ecee37f271c9c63fd2a7c26cc5f088340f332"
     }
   ],
-  "balance": "8.47",
+  "balance": "7.47",
   "running": false,
   "market": {
     "up": "0.51",
     "down": "0.49"
   },
-  "exportedAt": "2026-03-15T13:36:00.037Z"
+  "exportedAt": "2026-03-15T13:37:59.974Z"
 }
