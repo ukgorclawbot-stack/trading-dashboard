@@ -59,6 +59,7 @@
 
     // ── Detect if running locally (with API server) or on GitHub Pages ──
     const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const GITHUB_RAW_URL = 'https://raw.githubusercontent.com/ukgorclawbot-stack/trading-dashboard/main/trades.json';
 
     // ── Stat helpers ──
     function computeStats(trades) {
@@ -205,20 +206,39 @@
       }, []);
 
       const [apiConnected, setApiConnected] = useState(false);
+      const [dataSource, setDataSource] = useState('sample');
+
+      function applyTradeData(d, source) {
+        if (d.trades && d.trades.length) setTrades(d.trades);
+        if (d.balance) setBalance(d.balance);
+        if (d.running !== undefined) setRunning(d.running);
+        if (d.market) setMarketWindow(d.market);
+        setApiConnected(true);
+        setDataSource(source);
+      }
 
       const fetchLogTrades = useCallback(async () => {
-        if (!IS_LOCAL) return; // GitHub Pages — use sample data
+        // Try local API first
+        if (IS_LOCAL) {
+          try {
+            const r = await fetch('/api/trades');
+            if (r.ok) {
+              applyTradeData(await r.json(), 'local');
+              return;
+            }
+          } catch { /* fall through */ }
+        }
+        // Try GitHub raw trades.json (for GitHub Pages or when local API is down)
         try {
-          const r = await fetch('/api/trades');
+          const r = await fetch(GITHUB_RAW_URL + '?t=' + Date.now()); // cache-bust
           if (r.ok) {
-            const d = await r.json();
-            setApiConnected(true);
-            if (d.trades && d.trades.length) setTrades(d.trades);
-            if (d.balance) setBalance(d.balance);
-            if (d.running !== undefined) setRunning(d.running);
-            if (d.market) setMarketWindow(d.market);
+            applyTradeData(await r.json(), 'github');
+            return;
           }
-        } catch { setApiConnected(false); }
+        } catch { /* fall through */ }
+        // Fallback: keep sample data
+        setApiConnected(false);
+        setDataSource('sample');
       }, []);
 
       useEffect(() => {
@@ -256,7 +276,9 @@
               <p className="text-xs text-slate-500 mt-0.5">Auto-refreshes every 30s</p>
             </div>
             <div className="text-right text-xs text-slate-500">
-              {IS_LOCAL && !apiConnected && <div className="text-amber-400 mb-1">API disconnected — showing sample data</div>}
+              {dataSource === 'sample' && <div className="text-amber-400 mb-1">No data source — showing sample data</div>}
+              {dataSource === 'github' && <div className="text-blue-400 mb-1">Live data via GitHub</div>}
+              {dataSource === 'local' && <div className="text-emerald-400 mb-1">Live data via local API</div>}
               Last refresh: {lastRefresh.toLocaleTimeString()}
             </div>
           </div>

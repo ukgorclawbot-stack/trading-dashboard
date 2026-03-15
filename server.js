@@ -198,6 +198,45 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// ── Periodic export of trades.json + git push ──
+const TRADES_JSON = path.join(__dirname, 'trades.json');
+const EXPORT_INTERVAL = 2 * 60 * 1000; // 2 minutes
+
+function exportAndPush() {
+  try {
+    const trades = parseLog();
+    const balance = getBalance();
+    const running = isBotRunning();
+    const market = getMarketPrices(trades);
+
+    const data = {
+      trades,
+      balance,
+      running,
+      market,
+      exportedAt: new Date().toISOString(),
+    };
+
+    fs.writeFileSync(TRADES_JSON, JSON.stringify(data, null, 2));
+
+    // Stage, commit, and push trades.json
+    execSync('git add trades.json', { cwd: __dirname, timeout: 10000 });
+    const status = execSync('git diff --cached --name-only', { cwd: __dirname, encoding: 'utf-8' });
+    if (status.trim()) {
+      execSync('git commit -m "data: update trades.json"', { cwd: __dirname, timeout: 10000 });
+      execSync('git push origin main', { cwd: __dirname, timeout: 30000 });
+      console.log(`[${new Date().toISOString()}] trades.json exported and pushed`);
+    } else {
+      console.log(`[${new Date().toISOString()}] trades.json unchanged, skipping push`);
+    }
+  } catch (e) {
+    console.error(`[${new Date().toISOString()}] Export/push failed:`, e.message);
+  }
+}
+
 server.listen(PORT, () => {
   console.log(`Trading dashboard running at http://localhost:${PORT}`);
+  // Initial export after 5s (let server start), then every 2 minutes
+  setTimeout(exportAndPush, 5000);
+  setInterval(exportAndPush, EXPORT_INTERVAL);
 });
