@@ -38,107 +38,121 @@ function isBotRunning() {
 
 function parseLog() {
   if (!fs.existsSync(LOG_FILE)) return [];
-
   const log = fs.readFileSync(LOG_FILE, 'utf-8');
-  const trades = [];
-
-  // Split into trade blocks by "新窗口" (new window) markers
   const blocks = log.split(/(?=\[自动策略\] 新窗口)/);
 
+  const pad = n => String(n).padStart(2, '0');
+
+  // First pass: parse all trade blocks
+  const parsedBlocks = [];
   for (const block of blocks) {
-    // Extract window timestamp
     const windowMatch = block.match(/\[自动策略\] 新窗口: (\d+) \((\d{4}-\d{2}-\d{2}T[\d:]+\.\d+Z)\)/);
     if (!windowMatch) continue;
 
-    const windowId = windowMatch[1];
-    const isoTime = windowMatch[2];
-    const ts = new Date(isoTime);
-    // Format as local time string
-    const pad = n => String(n).padStart(2, '0');
-    const tsStr = `${ts.getFullYear()}-${pad(ts.getMonth()+1)}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`;
+    const slugMatch = block.match(/Slug: btc-updown-5m-(\d+)/);
+    const balanceMatch = block.match(/\[余额\] USDC: \$([\d.]+)/);
+    const orderMatch = block.match(/\[下单\] 方向=(UP|DOWN), 金额=\$([\d.]+)/);
+    const successMatch = block.match(/\[成功\] 状态: (\w+)/);
+    const orderIdMatch = block.match(/\[成功\] 订单ID: (0x[\da-f]+)/i);
+    const upPriceMatch = block.match(/UP\s+价格: \$([\d.]+)/);
+    const downPriceMatch = block.match(/DOWN\s*价格: \$([\d.]+)/);
+    const failMatch = block.match(/\[失败\]/) || block.match(/\[错误\]/);
 
-    // Extract strategy
     let strategy = 'unknown';
     if (block.includes('[过度自信反转]')) strategy = 'overconfidence-reversal';
     else if (block.includes('[趋势跟随]')) strategy = 'trend-follow';
     else if (block.includes('[低波动反转]')) strategy = 'low-vol-reversal';
-    else if (block.includes('[跳过]') || block.includes('无明确信号')) {
-      continue; // skipped trade
+    else if (block.includes('[跳过]') || block.includes('无明确信号')) strategy = 'skip';
+
+    // Collect redeem lines in this block (for previous windows)
+    const redeems = [];
+    const redeemRe = /\[Redeem\] btc-updown-5m-(\d+): UP=(\d+), DOWN=(\d+)(?:, winner=(\w+))?/g;
+    let m;
+    while ((m = redeemRe.exec(block)) !== null) {
+      redeems.push({ slugId: m[1], up: parseInt(m[2]), down: parseInt(m[3]), winner: m[4] || null });
     }
 
-    // Extract order direction and amount
-    const orderMatch = block.match(/\[下单\] 方向=(UP|DOWN), 金额=\$([\d.]+)/);
-    if (!orderMatch) continue;
+    parsedBlocks.push({
+      windowId: windowMatch[1],
+      isoTime: windowMatch[2],
+      slugId: slugMatch ? slugMatch[1] : windowMatch[1],
+      balance: balanceMatch ? parseFloat(balanceMatch[1]) : null,
+      dir: orderMatch ? orderMatch[1] : null,
+      amount: orderMatch ? parseFloat(orderMatch[2]) : 0,
+      strategy,
+      success: !!successMatch && !failMatch,
+      orderId: orderIdMatch ? orderIdMatch[1] : null,
+      upPrice: upPriceMatch ? upPriceMatch[1] : '0.50',
+      downPrice: downPriceMatch ? downPriceMatch[1] : '0.50',
+      redeems,
+    });
+  }
 
-    const dir = orderMatch[1];
-    const amount = parseFloat(orderMatch[2]);
+  // Second pass: determine outcomes via balance changes
+  // Between block[i] and block[i+1], the redeems in block[i] get settled.
+  // redeemGain = balance[i+1] - (balance[i] - amount[i])
+  // If gain > 0: the redeemed token side won. If gain ≈ 0: that side lost.
+  const outcomes = {}; // slugId → { winner: 'UP'|'DOWN', shares: N }
+  for (let i = 0; i < parsedBlocks.length; i++) {
+    const curr = parsedBlocks[i];
+    const next = parsedBlocks[i + 1];
 
-    // Extract UP/DOWN prices from market info
-    let upPrice = '0.50', downPrice = '0.50';
-    const upPriceMatch = block.match(/UP\s+价格: \$([\d.]+)/);
-    const downPriceMatch = block.match(/DOWN\s*价格: \$([\d.]+)/);
-    if (upPriceMatch) upPrice = upPriceMatch[1];
-    if (downPriceMatch) downPrice = downPriceMatch[1];
+    for (const r of curr.redeems) {
+      if (r.winner) {
+        // New format with explicit winner
+        outcomes[r.slugId] = { winner: r.winner, shares: r.winner === 'UP' ? r.up : r.down };
+        continue;
+      }
+      // Infer winner from balance change
+      if (next && curr.balance != null && next.balance != null) {
+        const gain = next.balance - (curr.balance - curr.amount);
+        const tokenSide = r.up > 0 ? 'UP' : 'DOWN';
+        if (gain > 0.01) {
+          outcomes[r.slugId] = { winner: tokenSide, shares: Math.max(r.up, r.down) };
+        } else {
+          outcomes[r.slugId] = { winner: tokenSide === 'UP' ? 'DOWN' : 'UP', shares: 0 };
+        }
+      }
+    }
+  }
 
-    // Check order result
-    const successMatch = block.match(/\[成功\] 状态: (\w+)/);
-    const orderIdMatch = block.match(/\[成功\] 订单ID: (0x[\da-f]+)/i);
-    const failMatch = block.match(/\[失败\]/) || block.match(/\[错误\]/);
+  // Third pass: build trade list
+  const trades = [];
+  for (const pb of parsedBlocks) {
+    if (pb.strategy === 'skip' || !pb.dir || !pb.success) continue;
 
-    if (failMatch && !successMatch) continue; // failed to place order
+    const ts = new Date(pb.isoTime);
+    const tsStr = `${ts.getFullYear()}-${pad(ts.getMonth()+1)}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`;
 
-    // Determine trade result from Redeem lines in the ENTIRE log
-    // Look for redeem of this windowId
     let result = 'pending';
     let pnl = 0;
 
-    // Search full log for redeem of this market
-    const redeemPattern = new RegExp(`\\[Redeem\\] btc-updown-5m-${windowId}: UP=(\\d+), DOWN=(\\d+)`);
-    const redeemMatch = log.match(redeemPattern);
-    if (redeemMatch) {
-      const upShares = parseInt(redeemMatch[1]);
-      const downShares = parseInt(redeemMatch[2]);
-      // If we bought UP and UP has shares redeemed → won
-      // If we bought UP and DOWN has shares redeemed → lost (but we wouldn't have DOWN shares)
-      // Actually: redeem shows OUR positions being redeemed
-      if (dir === 'UP' && upShares > 0) {
+    const outcome = outcomes[pb.slugId];
+    if (outcome) {
+      if (pb.dir === outcome.winner) {
         result = 'won';
-        // Approximate PnL: shares redeemed are in raw units (6 decimals for USDC)
-        const redeemed = upShares / 1e6;
-        pnl = redeemed - amount;
-      } else if (dir === 'DOWN' && downShares > 0) {
-        result = 'won';
-        const redeemed = downShares / 1e6;
-        pnl = redeemed - amount;
-      } else if (dir === 'UP' && upShares === 0 && downShares === 0) {
-        // No shares to redeem — likely lost
+        pnl = outcome.shares > 0 ? outcome.shares / 1e6 - pb.amount : 0;
+        // Sanity cap PnL at 10x bet
+        if (pnl > 10 * pb.amount) {
+          const price = pb.dir === 'UP' ? parseFloat(pb.upPrice) : parseFloat(pb.downPrice);
+          pnl = price > 0 ? (1 / price - 1) * pb.amount : pb.amount;
+        }
+      } else {
         result = 'lost';
-        pnl = -amount;
-      } else if (dir === 'DOWN' && downShares === 0 && upShares === 0) {
-        result = 'lost';
-        pnl = -amount;
-      }
-    }
-
-    // If the order was matched but no redeem yet, check the takingAmount from result JSON
-    if (result === 'pending') {
-      const takingMatch = block.match(/"takingAmount":\s*"([\d.]+)"/);
-      if (takingMatch) {
-        // takingAmount is the number of outcome tokens we received
-        // We'll know win/loss once market resolves
+        pnl = -pb.amount;
       }
     }
 
     trades.push({
       ts: tsStr,
-      dir,
-      amount,
+      dir: pb.dir,
+      amount: pb.amount,
       result,
       pnl: Math.round(pnl * 100) / 100,
-      strategy,
-      upPrice,
-      downPrice,
-      orderId: orderIdMatch ? orderIdMatch[1] : null,
+      strategy: pb.strategy,
+      upPrice: pb.upPrice,
+      downPrice: pb.downPrice,
+      orderId: pb.orderId,
     });
   }
 
