@@ -1,6 +1,17 @@
 {
   "trades": [
     {
+      "ts": "2026-03-15 19:00:00",
+      "dir": "UP",
+      "amount": 1,
+      "result": "pending",
+      "pnl": 0,
+      "strategy": "overconfidence-reversal",
+      "upPrice": "0.51",
+      "downPrice": "0.49",
+      "orderId": "0x98144029aff6cbb4a597593430d2176633e335d58ff1929192ce01b7beda3600"
+    },
+    {
       "ts": "2026-03-15 18:50:00",
       "dir": "UP",
       "amount": 1,
@@ -15,8 +26,8 @@
       "ts": "2026-03-15 18:45:00",
       "dir": "UP",
       "amount": 1,
-      "result": "pending",
-      "pnl": 0,
+      "result": "lost",
+      "pnl": -1,
       "strategy": "overconfidence-reversal",
       "upPrice": "0.48",
       "downPrice": "0.52",
@@ -342,11 +353,11 @@
       "orderId": "0x2ca18c6ab83903ddaf92d65c849ecee37f271c9c63fd2a7c26cc5f088340f332"
     }
   ],
-  "balance": "21.84",
+  "balance": "19.84",
   "running": false,
   "market": {
-    "up": "0.49",
-    "down": "0.51"
+    "up": "0.51",
+    "down": "0.49"
   },
-  "exportedAt": "2026-03-15T11:23:59.777Z"
+  "exportedAt": "2026-03-15T11:25:59.820Z"
 }
