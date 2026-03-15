@@ -1,9 +1,34 @@
 {
   "trades": [
     {
+      "ts": "2026-03-16 02:02:00",
+      "dir": "UP",
+      "amount": 1,
+      "result": "won",
+      "pnl": 0.4,
+      "strategy": "scalp",
+      "upPrice": "0.46",
+      "downPrice": "0.55",
+      "orderId": null
+    },
+    {
       "ts": "2026-03-16 02:01:00",
       "dir": "DOWN",
       "amount": 1,
+      "result": "lost",
+      "pnl": -0.04,
+      "strategy": "scalp",
+      "upPrice": "0.46",
+      "downPrice": "0.55",
+      "orderId": null
+    },
+    {
+      "ts": "2026-03-16 02:01:00",
+      "windowId": "1773597600",
+      "dir": "UP",
+      "amount": 1,
+      "tokens": 1.563,
+      "entryPrice": 0.505,
       "result": "pending",
       "pnl": 0,
       "strategy": "scalp",
@@ -29,8 +54,8 @@
       "ts": "2026-03-16 02:00:00",
       "dir": "DOWN",
       "amount": 1,
-      "result": "lost",
-      "pnl": -0.41,
+      "result": "won",
+      "pnl": 0.05,
       "strategy": "scalp",
       "upPrice": "0.46",
       "downPrice": "0.55",
@@ -175,31 +200,6 @@
       "amount": 1,
       "result": "won",
       "pnl": 0.25,
-      "strategy": "scalp",
-      "upPrice": "0.51",
-      "downPrice": "0.49",
-      "orderId": null
-    },
-    {
-      "ts": "2026-03-16 01:36:00",
-      "dir": "UP",
-      "amount": 1,
-      "result": "won",
-      "pnl": 0.4,
-      "strategy": "scalp",
-      "upPrice": "0.51",
-      "downPrice": "0.49",
-      "orderId": null
-    },
-    {
-      "ts": "2026-03-16 01:35:00",
-      "windowId": "1773596100",
-      "dir": "UP",
-      "amount": 1,
-      "tokens": 1.563,
-      "entryPrice": 0.505,
-      "result": "pending",
-      "pnl": 0,
       "strategy": "scalp",
       "upPrice": "0.51",
       "downPrice": "0.49",
@@ -954,11 +954,11 @@
       "orderId": "0x2ca18c6ab83903ddaf92d65c849ecee37f271c9c63fd2a7c26cc5f088340f332"
     }
   ],
-  "balance": "29.65",
+  "balance": "31.55",
   "running": false,
   "market": {
     "up": "0.46",
     "down": "0.55"
   },
-  "exportedAt": "2026-03-15T18:02:56.526Z"
+  "exportedAt": "2026-03-15T18:04:56.357Z"
 }
