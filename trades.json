@@ -15,8 +15,8 @@
       "ts": "2026-03-16 01:56:00",
       "dir": "UP",
       "amount": 1,
-      "result": "pending",
-      "pnl": 0,
+      "result": "lost",
+      "pnl": -0.98,
       "strategy": "scalp",
       "upPrice": "0.51",
       "downPrice": "0.49",
@@ -52,11 +52,8 @@
     },
     {
       "ts": "2026-03-16 01:55:00",
-      "windowId": "1773597300",
       "dir": "UP",
       "amount": 1,
-      "tokens": 2.174,
-      "entryPrice": 0.505,
       "result": "pending",
       "pnl": 0,
       "strategy": "scalp",
@@ -946,11 +943,11 @@
       "orderId": "0x2ca18c6ab83903ddaf92d65c849ecee37f271c9c63fd2a7c26cc5f088340f332"
     }
   ],
-  "balance": "30.62",
+  "balance": "30.67",
   "running": false,
   "market": {
     "up": "0.51",
     "down": "0.49"
   },
-  "exportedAt": "2026-03-15T17:56:56.504Z"
+  "exportedAt": "2026-03-15T17:58:56.442Z"
 }
