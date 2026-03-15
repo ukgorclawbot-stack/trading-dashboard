@@ -15,8 +15,8 @@
       "ts": "2026-03-15 16:35:00",
       "dir": "DOWN",
       "amount": 1,
-      "result": "pending",
-      "pnl": 0,
+      "result": "won",
+      "pnl": 0.54,
       "strategy": "overconfidence-reversal",
       "upPrice": "0.51",
       "downPrice": "0.49",
@@ -249,5 +249,5 @@
     "up": "0.49",
     "down": "0.51"
   },
-  "exportedAt": "2026-03-15T08:44:12.934Z"
+  "exportedAt": "2026-03-15T08:46:13.003Z"
 }
