@@ -4,8 +4,8 @@
       "ts": "2026-03-16 15:45:00",
       "dir": "UP",
       "amount": 1,
-      "result": "pending",
-      "pnl": 0,
+      "result": "lost",
+      "pnl": -0.42,
       "strategy": "scalp",
       "upPrice": "0.54",
       "downPrice": "0.47",
@@ -2767,5 +2767,5 @@
     "up": "0.54",
     "down": "0.47"
   },
-  "exportedAt": "2026-03-16T07:46:57.568Z"
+  "exportedAt": "2026-03-16T07:48:57.421Z"
 }
