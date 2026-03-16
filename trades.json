@@ -1,6 +1,17 @@
 {
   "trades": [
     {
+      "ts": "2026-03-16 15:00:00",
+      "dir": "UP",
+      "amount": 1,
+      "result": "pending",
+      "pnl": 0,
+      "strategy": "scalp",
+      "upPrice": "0.51",
+      "downPrice": "0.49",
+      "orderId": null
+    },
+    {
       "ts": "2026-03-16 14:55:00",
       "dir": "DOWN",
       "amount": 1,
@@ -2657,5 +2668,5 @@
     "up": "0.51",
     "down": "0.49"
   },
-  "exportedAt": "2026-03-16T07:00:57.372Z"
+  "exportedAt": "2026-03-16T07:02:57.272Z"
 }
