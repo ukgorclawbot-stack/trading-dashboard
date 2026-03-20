@@ -3432,11 +3432,11 @@
       "orderId": null
     }
   ],
-  "balance": "4.56",
+  "balance": "9.54",
   "running": false,
   "market": {
     "up": "0.52",
     "down": "0.48"
   },
-  "exportedAt": "2026-03-20T07:01:06.573Z"
+  "exportedAt": "2026-03-20T07:03:06.620Z"
 }
