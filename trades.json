@@ -1,10 +1,10 @@
 {
   "trades": [],
-  "balance": "11.22",
+  "balance": "10.22",
   "running": false,
   "market": {
     "up": "0.50",
     "down": "0.50"
   },
-  "exportedAt": "2026-03-21T06:05:09.186Z"
+  "exportedAt": "2026-03-21T06:07:09.115Z"
 }
